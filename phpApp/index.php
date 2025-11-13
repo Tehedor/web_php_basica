@@ -57,7 +57,48 @@ try {
         </table>
     <?php endif; ?>
 
+
     <h2>Imagen desde almacenamiento</h2>
-    <img src="storage/image.jpg" alt="Storage Image" width="300">
+    <?php
+        // Obtener IP/host desde variable de entorno
+        $ip = getenv('IP_OBJECT_STORAGE') ?: '';
+        if ($ip !== '') {
+            // Si el valor ya contiene esquema, úsalo tal cual; si no, construye http://IP:9000
+            if (preg_match('#^https?://#i', $ip)) {
+                $base = rtrim($ip, '/');
+            } else {
+                $base = 'http://' . $ip . ':9000';
+            }
+            $storageUrl = $base . '/images/image.jpg';
+
+            // Comprobar accesibilidad remota (HEAD)
+            $isAccessible = false;
+            if (preg_match('#^https?://#i', $storageUrl)) {
+                $headers = @get_headers($storageUrl);
+                if ($headers && preg_match('#^HTTP/\d+\.\d+\s+2\d\d#', $headers[0])) {
+                    $isAccessible = true;
+                }
+            } else {
+                // URL no-http (raro), tratar como ruta local
+                $localPath = __DIR__ . '/' . ltrim($storageUrl, '/');
+                if (file_exists($localPath) && is_readable($localPath)) {
+                    $isAccessible = true;
+                    // ajustar ruta para el navegador si es necesario
+                    $storageUrl = 'storage/image.jpg';
+                }
+            }
+        } else {
+            // fallback a imagen local si no hay variable de entorno
+            $storageUrl = 'storage/image.jpg';
+            $localPath = __DIR__ . '/' . $storageUrl;
+            $isAccessible = file_exists($localPath) && is_readable($localPath);
+        }
+    ?>
+    <?php if (!empty($isAccessible)): ?>
+        <img src="<?= htmlspecialchars($storageUrl, ENT_QUOTES, 'UTF-8') ?>" alt="Storage Image" width="300">
+    <?php else: ?>
+        <p class="error">No se ha podido acceder a la imagen de storage.</p>
+    <?php endif; ?>
+
 </body>
 </html>
