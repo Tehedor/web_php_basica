@@ -1,5 +1,5 @@
 <!-- index.php -->
- <?php
+<?php
 // Carga configuración y conexión
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/db_config.php'; // Esto define $conn y $db_connection_error
@@ -7,16 +7,14 @@ require_once __DIR__ . '/db_config.php'; // Esto define $conn y $db_connection_e
 $error = null;
 $rows = [];
 
-// PRIMERO comprobamos si hubo un error AL CONECTAR
+// Comprobamos si hubo error al conectar
 if (isset($db_connection_error) && $db_connection_error) {
     $error = $db_connection_error;
 } else {
-    // Si no hubo error de conexión, INTENTAMOS LA CONSULTA
     try {
         $stmt = $conn->query("SELECT * FROM `usuarios` LIMIT 1000");
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (Exception $e) {
-        // Esto captura errores en la CONSULTA (ej. tabla no existe)
         $error = $e->getMessage();
     }
 }
@@ -40,13 +38,12 @@ if (isset($db_connection_error) && $db_connection_error) {
     <h1><?= htmlspecialchars($PAGE_TITLE ?? 'Mi Página') ?></h1>
 
     <h2>Usuarios desde MySQL</h2>
-    
     <div id="usuarios-data">
         <?php if ($error): ?>
             <p class="error">Error al consultar la base de datos: <?= htmlspecialchars($error) ?></p>
-        <?php elseif (empty($rows) && !$error): // Modificado para ser más preciso ?>
+        <?php elseif (empty($rows)): ?>
             <p>No hay registros en la tabla <code>usuarios</code>.</p>
-        <?php elseif (!empty($rows)): ?>
+        <?php else: ?>
             <table>
                 <thead>
                     <tr>
@@ -70,65 +67,34 @@ if (isset($db_connection_error) && $db_connection_error) {
 
     <h2>Imagen desde almacenamiento</h2>
     <?php
-        // 1. Obtener la IP (DENTRO de las etiquetas PHP)
-        $ip = getenv('IP_OBJECT_STORAGE') ?: '';
-        
-        // 2. Lógica básica: Si no hay IP, mostramos error.
-        if ($ip !== ''):
-
-            // 3. Construir la URL (con PUNTOS, no con '+')
-            $storageUrl = 'http://' . $ip . ':9000/images/image.jpg';
+    // Archivo que queremos mostrar
+    $filename = 'image.jpg';
+    // URL del proxy PHP
+    $proxyUrl = '/storage_proxy.php?file=' . urlencode($filename);
     ?>
-
-        <p>Ruta: <?= htmlspecialchars($storageUrl) ?></p>
-
-        <img src="<?= htmlspecialchars($storageUrl, ENT_QUOTES, 'UTF-8') ?>" alt="Storage Image" width="300">
-
-    <?php 
-        else: 
-            // 6. El único error que comprobamos: si la variable IP no existía
-    ?>
-        <p class="error">No se ha podido construir la ruta: La variable IP_OBJECT_STORAGE no está definida.</p>
-    <?php 
-        endif; // Fin del if
-    ?>
-
+    <p>Ruta: <?= htmlspecialchars($proxyUrl) ?></p>
+    <img src="<?= htmlspecialchars($proxyUrl, ENT_QUOTES, 'UTF-8') ?>" alt="Storage Image" width="300">
 
 <script>
-    // Pasamos la variable de error de PHP a JavaScript
-    // json_encode(boolval($error)) se asegura de que sea 'true' o 'false'
+    // Reintentos si hubo error de BD
     const dbErrorOccurred = <?= json_encode(boolval($error)) ?>;
 
     if (dbErrorOccurred) {
         console.log('Error de BD detectado. Iniciando reintentos cada 10 segundos...');
-        
-        // Guardamos el ID del intervalo para poder detenerlo
-        const pollingInterval = setInterval(checkDatabase, 10000); // 10000 ms = 10 seg
+        const pollingInterval = setInterval(checkDatabase, 10000);
 
         async function checkDatabase() {
             try {
-                // Hacemos la llamada al nuevo archivo
                 const response = await fetch('ajax_get_users.php');
-
-                // response.ok es true si el código HTTP es 200-299
                 if (response.ok) {
-                    console.log('¡Éxito! La BD ha respondido.');
-                    
-                    // Obtenemos el HTML de la tabla
                     const tableHtml = await response.text();
-                    
-                    // Reemplazamos el mensaje de error por la tabla
                     document.getElementById('usuarios-data').innerHTML = tableHtml;
-                    
-                    // ¡Muy importante! Detenemos los reintentos
                     clearInterval(pollingInterval);
-                    
+                    console.log('¡Éxito! La BD ha respondido.');
                 } else {
-                    // El servidor respondió con 503 o 500
                     console.log('Reintento fallido. La BD sigue sin responder.');
                 }
             } catch (error) {
-                // Esto captura errores de red (ej. servidor caído)
                 console.log('Error de red durante el reintento.', error);
             }
         }
