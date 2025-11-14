@@ -32,12 +32,14 @@ if (isset($db_connection_error) && $db_connection_error) {
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     } catch (Exception $e) {
-        $error = $e->getMessage();
+        $error = $e->getMeassage();
     }
 }
 
 // Nombre de la imagen
 $filename = 'image.jpg';
+// IP del object storage desde variable de entorno (puede estar vacía)
+$ip_object_storage = getenv('IP_OBJECT_STORAGE') ?: '';
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -93,23 +95,63 @@ $filename = 'image.jpg';
 <script>
 async function loadImage() {
     const container = document.getElementById('image-container');
-    const filename = '<?= $filename ?>';
+    const filename = <?= json_encode($filename) ?>;
+    const storageIP = <?= json_encode($ip_object_storage) ?>;
 
-    try {
-        const response = await fetch(`fetch_image.php?file=${encodeURIComponent(filename)}`);
-        if (!response.ok) throw new Error('No se pudo obtener la imagen');
+    function showError(msg) {
+        container.innerHTML = `<p class="error">${msg}</p>`;
+    }
 
-        const blob = await response.blob();
+    function showImgFromSrc(src) {
         const img = document.createElement('img');
         img.width = 300;
         img.alt = 'Storage Image';
-        img.src = URL.createObjectURL(blob);
-
-        container.innerHTML = ''; // Limpiar mensaje de carga
-        container.appendChild(img);
-    } catch (err) {
-        container.innerHTML = `<p class="error">Error al cargar la imagen: ${err.message}</p>`;
+        img.src = src;
+        img.onload = () => {
+            container.innerHTML = '';
+            container.appendChild(img);
+        };
+        img.onerror = () => {
+            showError('No se ha podido acceder a la imagen de storage.');
+        };
     }
+
+    // 1) Intentar proxy (fetch_image.php)
+    try {
+        const proxyResp = await fetch(`fetch_image.php?file=${encodeURIComponent(filename)}`);
+        if (proxyResp.ok) {
+            const blob = await proxyResp.blob();
+            const objectUrl = URL.createObjectURL(blob);
+            showImgFromSrc(objectUrl);
+            return;
+        }
+    } catch (e) {
+        // continuar a intento directo
+    }
+
+    // 2) Intento directo construyendo URL a partir de IP_OBJECT_STORAGE
+    if (storageIP && storageIP.length > 0) {
+        let base = storageIP;
+        if (!/^https?:\/\//i.test(base)) {
+            if (base.indexOf(':') === -1) {
+                base = 'http://' + base + ':9000';
+            } else {
+                base = 'http://' + base;
+            }
+        }
+        base = base.replace(/\/+$/, '');
+        const directUrl = `${base}/images/${encodeURIComponent(filename)}`;
+
+        showImgFromSrc(directUrl);
+        return;
+    }
+
+    // 3) Fallback: intentar imagen local relativa 'storage/image.jpg'
+    const localPath = `storage/${filename}`;
+    const testImg = document.createElement('img');
+    testImg.onload = () => { showImgFromSrc(localPath); };
+    testImg.onerror = () => { showError('No se ha podido acceder a la imagen de storage.'); };
+    testImg.src = localPath;
 }
 
 loadImage();
