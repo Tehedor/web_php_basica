@@ -12,19 +12,19 @@ if (isset($db_connection_error) && $db_connection_error) {
 } else {
     try {
         // --- 2a. Inicializar base con init-data.sql ---
-        $sqlFile = __DIR__ . '/init-data.sql';
-        if (file_exists($sqlFile)) {
-            $sqlContent = file_get_contents($sqlFile);
-            if ($sqlContent) {
-                // Separa por ";" para ejecutar cada comando SQL
-                $queries = array_filter(array_map('trim', explode(';', $sqlContent)));
-                foreach ($queries as $query) {
-                    if ($query) {
-                        $conn->exec($query); // Ejecuta cada query
-                    }
-                }
-            }
-        }
+        // $sqlFile = __DIR__ . '/init-data.sql';
+        // if (file_exists($sqlFile)) {
+        //     $sqlContent = file_get_contents($sqlFile);
+        //     if ($sqlContent) {
+        //         // Separa por ";" para ejecutar cada comando SQL
+        //         $queries = array_filter(array_map('trim', explode(';', $sqlContent)));
+        //         foreach ($queries as $query) {
+        //             if ($query) {
+        //                 $conn->exec($query); // Ejecuta cada query
+        //             }
+        //         }
+        //     }
+        // }
         // --- FIN inicialización ---
 
         // 2b. Ahora leemos la tabla de usuarios
