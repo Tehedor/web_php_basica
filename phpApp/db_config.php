@@ -1,4 +1,5 @@
-<?php
+<!-- db config.php -->
+ <?php
 // Configuración de conexión MySQL
 // Actualiza estos valores según tu servidor
 $db_host = getenv('DB_HOST') ?: 'localhost:3306';
@@ -10,9 +11,10 @@ $db_charset = 'utf8mb4';
 
 $dsn = "mysql:host=$db_host;dbname=$db_name;charset=$db_charset";
 $options = [
-    PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-    PDO::ATTR_EMULATE_PREPARES   => false,
+    // Indentación con espacios normales
+    PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    PDO::ATTR_EMULATE_PREPARES   => false,
 ];
 
 // Inicializamos las variables
@@ -21,8 +23,8 @@ $db_connection_error = null;
 
 try {
     // Intentamos conectar
-    $conn = new PDO($dsn, $db_user, $db_password, $options);
+    $conn = new PDO($dsn, $db_user, $db_password, $options);
 } catch (PDOException $e) {
     // ¡No usamos die()! Solo guardamos el mensaje de error.
-    $db_connection_error = 'Error conexión BD: ' . $e->getMessage();
+    $db_connection_error = 'Error conexión BD: ' . $e->getMessage();
 }

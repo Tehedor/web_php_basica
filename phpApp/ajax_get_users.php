@@ -1,6 +1,5 @@
+<!-- // ajax_get_users.php -->
 <?php
-// ajax_get_users.php
-
 // Cargamos las configuraciones (¡importante!)
 // Asumimos que config.php y db_config.php están en el mismo directorio
 require_once __DIR__ . '/config.php';
