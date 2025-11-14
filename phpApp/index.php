@@ -1,23 +1,43 @@
-<!-- index.php -->
 <?php
-// Carga configuración y conexión
+// 1. Carga configuración y conexión
 require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/db_config.php'; // Esto define $conn y $db_connection_error
+require_once __DIR__ . '/db_config.php';
 
 $error = null;
 $rows = [];
 
-// Comprobamos si hubo error al conectar
+// 2. Solo intentar inicializar la base si la conexión es exitosa
 if (isset($db_connection_error) && $db_connection_error) {
     $error = $db_connection_error;
 } else {
     try {
+        // --- 2a. Inicializar base con init-data.sql ---
+        $sqlFile = __DIR__ . '/init-data.sql';
+        if (file_exists($sqlFile)) {
+            $sqlContent = file_get_contents($sqlFile);
+            if ($sqlContent) {
+                // Separa por ";" para ejecutar cada comando SQL
+                $queries = array_filter(array_map('trim', explode(';', $sqlContent)));
+                foreach ($queries as $query) {
+                    if ($query) {
+                        $conn->exec($query); // Ejecuta cada query
+                    }
+                }
+            }
+        }
+        // --- FIN inicialización ---
+
+        // 2b. Ahora leemos la tabla de usuarios
         $stmt = $conn->query("SELECT * FROM `usuarios` LIMIT 1000");
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
     } catch (Exception $e) {
         $error = $e->getMessage();
     }
 }
+
+// Nombre de la imagen
+$filename = 'image.jpg';
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -66,39 +86,57 @@ if (isset($db_connection_error) && $db_connection_error) {
     </div>
 
     <h2>Imagen desde almacenamiento</h2>
-    <?php
-    // Archivo que queremos mostrar
-    $filename = 'image.jpg';
-    // URL del proxy PHP
-    $proxyUrl = '/storage_proxy.php?file=' . urlencode($filename);
-    ?>
-    <p>Ruta: <?= htmlspecialchars($proxyUrl) ?></p>
-    <img src="<?= htmlspecialchars($proxyUrl, ENT_QUOTES, 'UTF-8') ?>" alt="Storage Image" width="300">
+    <div id="image-container">
+        <p>Cargando imagen...</p>
+    </div>
 
 <script>
-    // Reintentos si hubo error de BD
-    const dbErrorOccurred = <?= json_encode(boolval($error)) ?>;
+async function loadImage() {
+    const container = document.getElementById('image-container');
+    const filename = '<?= $filename ?>';
 
-    if (dbErrorOccurred) {
-        console.log('Error de BD detectado. Iniciando reintentos cada 10 segundos...');
-        const pollingInterval = setInterval(checkDatabase, 10000);
+    try {
+        const response = await fetch(`fetch_image.php?file=${encodeURIComponent(filename)}`);
+        if (!response.ok) throw new Error('No se pudo obtener la imagen');
 
-        async function checkDatabase() {
-            try {
-                const response = await fetch('ajax_get_users.php');
-                if (response.ok) {
-                    const tableHtml = await response.text();
-                    document.getElementById('usuarios-data').innerHTML = tableHtml;
-                    clearInterval(pollingInterval);
-                    console.log('¡Éxito! La BD ha respondido.');
-                } else {
-                    console.log('Reintento fallido. La BD sigue sin responder.');
-                }
-            } catch (error) {
-                console.log('Error de red durante el reintento.', error);
+        const blob = await response.blob();
+        const img = document.createElement('img');
+        img.width = 300;
+        img.alt = 'Storage Image';
+        img.src = URL.createObjectURL(blob);
+
+        container.innerHTML = ''; // Limpiar mensaje de carga
+        container.appendChild(img);
+    } catch (err) {
+        container.innerHTML = `<p class="error">Error al cargar la imagen: ${err.message}</p>`;
+    }
+}
+
+loadImage();
+
+// Reintentos si hubo error de BD
+const dbErrorOccurred = <?= json_encode(boolval($error)) ?>;
+
+if (dbErrorOccurred) {
+    console.log('Error de BD detectado. Iniciando reintentos cada 10 segundos...');
+    const pollingInterval = setInterval(checkDatabase, 10000);
+
+    async function checkDatabase() {
+        try {
+            const response = await fetch('ajax_get_users.php');
+            if (response.ok) {
+                const tableHtml = await response.text();
+                document.getElementById('usuarios-data').innerHTML = tableHtml;
+                clearInterval(pollingInterval);
+                console.log('¡Éxito! La BD ha respondido.');
+            } else {
+                console.log('Reintento fallido. La BD sigue sin responder.');
             }
+        } catch (error) {
+            console.log('Error de red durante el reintento.', error);
         }
     }
+}
 </script>
 
 </body>

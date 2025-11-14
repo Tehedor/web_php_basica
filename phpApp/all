@@ -1,0 +1,253 @@
+<!-- // ajax_get_users.php -->
+<?php
+// Cargamos las configuraciones (¡importante!)
+// Asumimos que config.php y db_config.php están en el mismo directorio
+require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/db_config.php';
+
+// 1. Comprobar si la conexión (de db_config.php) falló
+if ($db_connection_error) {
+    // Si falló, respondemos con un error de servidor.
+    // JavaScript interpretará esto como un fallo y volverá a intentarlo.
+    http_response_code(503); // 503 Service Unavailable
+    echo "BD no disponible";
+    exit;
+}
+
+// 2. Si la conexión tuvo éxito, intentamos la consulta
+try {
+    $stmt = $conn->query("SELECT * FROM `usuarios` LIMIT 1000");
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // 3. Comprobar si hay resultados y construir el HTML de la tabla
+    if (empty($rows)) {
+        echo "<p>No hay registros en la tabla <code>usuarios</code>.</p>";
+        exit;
+    }
+
+    // Si hay datos, construimos la tabla (este código es copiado de tu index.php)
+    ?>
+    <table>
+        <thead>
+            <tr>
+                <?php foreach (array_keys($rows[0]) as $col): ?>
+                    <th><?= htmlspecialchars($col) ?></th>
+                <?php endforeach; ?>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($rows as $r): ?>
+                <tr>
+                    <?php foreach ($r as $v): ?>
+                        <td><?= htmlspecialchars((string)$v) ?></td>
+                    <?php endforeach; ?>
+                </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+    <?php
+
+} catch (Exception $e) {
+    // Si la CONSULTA falla (ej. tabla no existe)
+    http_response_code(500); // 500 Internal Server Error
+    echo "Error en la consulta: " . htmlspecialchars($e->getMessage());
+    exit;
+}<!-- config.php -->
+<?php
+// Título que quieres mostrar en la página principal (modifícalo aquí)
+$PAGE_TITLE = getenv('PAGE_TITLE') ?: 'Mi Página Principallll';
+
+<!-- db config.php -->
+ <?php
+// Configuración de conexión MySQL
+// Actualiza estos valores según tu servidor
+$db_host = getenv('DB_HOST') ?: 'localhost:3306';
+// $db_host = getenv('DB_HOST') ?: 'mysql_db';
+$db_user = getenv('DB_USER') ?: 'root';
+$db_password = getenv('DB_PASS') ?: 'xxxx';
+$db_name = getenv('DB_NAME') ?: 'ususarios_db';
+$db_charset = 'utf8mb4';
+
+$dsn = "mysql:host=$db_host;dbname=$db_name;charset=$db_charset";
+$options = [
+    // Indentación con espacios normales
+    PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    PDO::ATTR_EMULATE_PREPARES   => false,
+];
+
+// Inicializamos las variables
+$conn = null;
+$db_connection_error = null;
+
+try {
+    // Intentamos conectar
+    $conn = new PDO($dsn, $db_user, $db_password, $options);
+} catch (PDOException $e) {
+    // ¡No usamos die()! Solo guardamos el mensaje de error.
+    $db_connection_error = 'Error conexión BD: ' . $e->getMessage();
+}<?php
+$filename = $_GET['file'] ?? null;
+if (!$filename) {
+    http_response_code(400);
+    echo "Missing file parameter.";
+    exit;
+}
+
+$storage_ip = getenv('IP_OBJECT_STORAGE');
+if (!$storage_ip) {
+    http_response_code(500);
+    echo "Storage IP not configured.";
+    exit;
+}
+
+$localFile = __DIR__ . '/images/' . basename($filename);
+
+// Si la imagen ya existe localmente, la usamos directamente
+if (!file_exists($localFile)) {
+    // Descargar desde el storage
+    $url = "http://{$storage_ip}:9000/images/" . basename($filename);
+    $data = @file_get_contents($url);
+
+    if (!$data) {
+        http_response_code(404);
+        echo "Image not found.";
+        exit;
+    }
+
+    // Guardar localmente
+    if (!is_dir(__DIR__ . '/images')) {
+        mkdir(__DIR__ . '/images', 0755, true);
+    }
+    file_put_contents($localFile, $data);
+}
+
+// Servir la imagen
+$info = getimagesize($localFile);
+header("Content-Type: " . $info['mime']);
+readfile($localFile);
+<?php
+// Carga configuración y conexión
+require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/db_config.php'; // Esto define $conn y $db_connection_error
+
+$error = null;
+$rows = [];
+
+// Comprobamos si hubo error al conectar
+if (isset($db_connection_error) && $db_connection_error) {
+    $error = $db_connection_error;
+} else {
+    try {
+        $stmt = $conn->query("SELECT * FROM `usuarios` LIMIT 1000");
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        $error = $e->getMessage();
+    }
+}
+
+// Nombre de la imagen
+$filename = 'image.jpg';
+?>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title><?= htmlspecialchars($PAGE_TITLE ?? 'Mi Página') ?></title>
+    <style>
+        body { font-family: sans-serif; margin: 2em; }
+        table { border-collapse: collapse; width: 100%; margin-top: 1em; }
+        th, td { border: 1px solid #ccc; padding: 0.5em; text-align: left; }
+        th { background: #f2f2f2; }
+        .error { color: #c00; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1><?= htmlspecialchars($PAGE_TITLE ?? 'Mi Página') ?></h1>
+
+    <h2>Usuarios desde MySQL</h2>
+    <div id="usuarios-data">
+        <?php if ($error): ?>
+            <p class="error">Error al consultar la base de datos: <?= htmlspecialchars($error) ?></p>
+        <?php elseif (empty($rows)): ?>
+            <p>No hay registros en la tabla <code>usuarios</code>.</p>
+        <?php else: ?>
+            <table>
+                <thead>
+                    <tr>
+                        <?php foreach (array_keys($rows[0]) as $col): ?>
+                            <th><?= htmlspecialchars($col) ?></th>
+                        <?php endforeach; ?>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($rows as $r): ?>
+                        <tr>
+                            <?php foreach ($r as $v): ?>
+                                <td><?= htmlspecialchars((string)$v) ?></td>
+                            <?php endforeach; ?>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
+    </div>
+
+    <h2>Imagen desde almacenamiento</h2>
+    <div id="image-container">
+        <p>Cargando imagen...</p>
+    </div>
+
+<script>
+async function loadImage() {
+    const container = document.getElementById('image-container');
+    const filename = '<?= $filename ?>';
+
+    try {
+        const response = await fetch(`fetch_image.php?file=${encodeURIComponent(filename)}`);
+        if (!response.ok) throw new Error('No se pudo obtener la imagen');
+
+        const blob = await response.blob();
+        const img = document.createElement('img');
+        img.width = 300;
+        img.alt = 'Storage Image';
+        img.src = URL.createObjectURL(blob);
+
+        container.innerHTML = ''; // Limpiar mensaje de carga
+        container.appendChild(img);
+    } catch (err) {
+        container.innerHTML = `<p class="error">Error al cargar la imagen: ${err.message}</p>`;
+    }
+}
+
+loadImage();
+
+// Reintentos si hubo error de BD
+const dbErrorOccurred = <?= json_encode(boolval($error)) ?>;
+
+if (dbErrorOccurred) {
+    console.log('Error de BD detectado. Iniciando reintentos cada 10 segundos...');
+    const pollingInterval = setInterval(checkDatabase, 10000);
+
+    async function checkDatabase() {
+        try {
+            const response = await fetch('ajax_get_users.php');
+            if (response.ok) {
+                const tableHtml = await response.text();
+                document.getElementById('usuarios-data').innerHTML = tableHtml;
+                clearInterval(pollingInterval);
+                console.log('¡Éxito! La BD ha respondido.');
+            } else {
+                console.log('Reintento fallido. La BD sigue sin responder.');
+            }
+        } catch (error) {
+            console.log('Error de red durante el reintento.', error);
+        }
+    }
+}
+</script>
+
+</body>
+</html>
